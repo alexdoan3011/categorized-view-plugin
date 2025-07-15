@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 public class CategorizedItemsBuilder {
-    final Comparator<TopLevelItem> comparator = new TopLevelItemComparator();
+    private Comparator<TopLevelItem> comparator;
     private List<TopLevelItem> itemsToCategorize;
     private List<GroupTopLevelItem> groupItems = new ArrayList<>();
     private List<? extends CategorizationCriteria> groupingRules;
@@ -28,6 +28,7 @@ public class CategorizedItemsBuilder {
         this.itemsToCategorize = items;
         this.groupingRules = groupingRules;
         this.regexToIgnoreOnColorComputing = regexToIgnoreOnColorComputing;
+        this.comparator = new TopLevelItemComparator(); // Default comparator
     }
 
     public List<TopLevelItem> getRegroupedItems() {
@@ -75,12 +76,38 @@ public class CategorizedItemsBuilder {
     private List<TopLevelItem> flattenList(final List<TopLevelItem> groupedItems) {
         final ArrayList<TopLevelItem> res = new ArrayList<>();
         itemsData = new LinkedHashMap<>();
+
+        // Extract group names from categorization criteria in the order they were defined
+        List<String> orderedGroupNames = extractOrderedGroupNames();
+        comparator = new GroupOrderComparator(orderedGroupNames);
+
         groupedItems.sort(comparator);
         for (TopLevelItem item : groupedItems) {
             addNestedItemsAsIndentedItemsInTheResult(res, item);
         }
 
         return res;
+    }
+
+    /**
+     * Extracts group names from the categorization criteria in the order they were defined.
+     *
+     * @return A list of group names in the order they appear in the configuration
+     */
+    private List<String> extractOrderedGroupNames() {
+        List<String> orderedGroupNames = new ArrayList<>();
+
+        // Collect all group names from all items that match our criteria
+        for (CategorizationCriteria criteria : groupingRules) {
+            for (TopLevelItem item : itemsToCategorize) {
+                String groupName = criteria.groupNameGivenItem(item);
+                if (groupName != null && !orderedGroupNames.contains(groupName)) {
+                    orderedGroupNames.add(groupName);
+                }
+            }
+        }
+
+        return orderedGroupNames;
     }
 
     private void addNestedItemsAsIndentedItemsInTheResult(final ArrayList<TopLevelItem> res, final TopLevelItem item) {
